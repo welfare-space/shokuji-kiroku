@@ -1,1 +1,518 @@
 
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>食事摂取量 管理・分析AI (多施設対応版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', 'Inter', sans-serif;
+        }
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #22c55e; /* green-500 */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .image-placeholder {
+            background-color: #f3f4f6;
+            border: 2px dashed #d1d5db;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: #6b7280;
+            min-height: 200px;
+            cursor: pointer;
+        }
+        .image-preview {
+            max-height: 250px;
+            width: 100%;
+            object-fit: contain;
+            cursor: pointer;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.75rem;
+            max-width: 90%;
+            width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        /* 施設未選択時にフォームを無効化するスタイル */
+        .form-disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-4xl">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-700">食事摂取量 管理・分析AI</h1>
+            <p class="text-gray-500 mt-2">施設を選択してから、日々の記録を開始してください。</p>
+        </header>
+
+        <!-- 分析セクション -->
+        <main class="bg-white rounded-xl shadow-lg p-6 md:p-8 space-y-6 mb-8">
+            <!-- ★★★ 施設選択機能を追加 ★★★ -->
+            <div class="space-y-2 border-b pb-6">
+                 <label for="facility-select" class="text-xl font-semibold text-gray-600">1. 利用する施設を選択</label>
+                 <select id="facility-select" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                    <option value="">-- 施設を選択してください --</option>
+                    <!-- 施設名はJavaScriptで動的に追加 -->
+                 </select>
+            </div>
+
+            <!-- ★★★ 施設選択後に有効になるフォーム ★★★ -->
+            <div id="main-form" class="space-y-6 form-disabled">
+                <div class="space-y-2">
+                     <label for="user-name" class="text-xl font-semibold text-gray-600">2. 利用者氏名</label>
+                     <input type="text" id="user-name" placeholder="例：鈴木 花子" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500">
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h2 class="text-xl font-semibold mb-2 text-gray-600">3. 配膳前の写真</h2>
+                        <div id="before-placeholder" class="image-placeholder rounded-lg">
+                            <svg class="h-10 w-10 mb-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            <span>クリックして選択</span>
+                        </div>
+                        <img id="before-preview" class="image-preview rounded-lg hidden" alt="配膳前のプレビュー">
+                        <input type="file" id="before-input" class="hidden" accept="image/*">
+                    </div>
+
+                    <div>
+                        <h2 class="text-xl font-semibold mb-2 text-gray-600">4. 下膳後の写真</h2>
+                        <div id="after-placeholder" class="image-placeholder rounded-lg">
+                             <svg class="h-10 w-10 mb-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                            <span>クリックして選択</span>
+                        </div>
+                        <img id="after-preview" class="image-preview rounded-lg hidden" alt="下膳後のプレビュー">
+                        <input type="file" id="after-input" class="hidden" accept="image/*">
+                    </div>
+                </div>
+
+                <div class="text-center pt-4">
+                    <button id="analyze-btn" class="bg-green-600 text-white font-bold py-3 px-8 rounded-lg hover:bg-green-700 transition-transform transform hover:scale-105 focus:outline-none focus:ring-4 focus:ring-green-300 disabled:bg-gray-400 disabled:cursor-not-allowed disabled:transform-none" disabled>
+                        5. 摂取量を分析する
+                    </button>
+                </div>
+
+                <div id="result-container" class="hidden pt-6">
+                    <h2 class="text-2xl font-bold text-green-800 mb-4 text-center">AIによる分析結果</h2>
+                    <div id="loader" class="flex justify-center items-center h-24 hidden">
+                        <div class="loader"></div>
+                        <p class="ml-4 text-gray-600">画像を分析しています...</p>
+                    </div>
+                    <div id="result-content" class="p-6 bg-green-50 rounded-lg border-2 border-dashed border-green-200 text-gray-700 whitespace-pre-wrap leading-relaxed"></div>
+                    <div id="error-message" class="hidden p-4 mt-4 bg-red-100 text-red-700 rounded-lg"></div>
+                    <div id="save-btn-container" class="text-center mt-4 hidden">
+                        <button id="save-btn" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition">
+                            この結果を保存する
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 履歴セクション -->
+        <section id="history-section" class="bg-white rounded-xl shadow-lg p-6 md:p-8 hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 id="history-title" class="text-2xl font-bold text-gray-700"></h2>
+                <button id="export-csv-btn" class="bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 transition disabled:bg-gray-300">
+                    CSVファイル出力
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="p-3">日付</th>
+                            <th class="p-3">利用者名</th>
+                            <th class="p-3">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-table-body"></tbody>
+                </table>
+                <p id="no-history-message" class="text-center text-gray-500 py-8">保存された記録はありません。</p>
+            </div>
+        </section>
+        
+        <footer class="text-center mt-8 text-sm text-gray-400">
+            <p>&copy; 2025 介護・福祉DXデモンストレーション</p>
+        </footer>
+    </div>
+
+    <!-- 詳細表示モーダル -->
+    <div id="details-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 id="modal-title" class="text-2xl font-bold mb-4"></h3>
+            <div class="space-y-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div><h4 class="font-semibold">配膳前</h4><img id="modal-before-img" class="w-full rounded-lg mt-1"></div>
+                    <div><h4 class="font-semibold">下膳後</h4><img id="modal-after-img" class="w-full rounded-lg mt-1"></div>
+                </div>
+                <div>
+                    <h4 class="font-semibold">分析結果</h4>
+                    <pre id="modal-result" class="p-4 bg-gray-100 rounded-lg whitespace-pre-wrap font-sans text-sm mt-1"></pre>
+                </div>
+                <div class="text-right">
+                    <button id="modal-close-btn" class="bg-gray-500 text-white py-2 px-4 rounded-lg hover:bg-gray-600">閉じる</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- 設定 ---
+        const FACILITIES = ["A施設", "B施設", "C介護センター"]; // ★★★ ここで施設名を編集・追加できます ★★★
+
+        // --- DOM要素の取得 ---
+        const facilitySelect = document.getElementById('facility-select');
+        const mainForm = document.getElementById('main-form');
+        const historySection = document.getElementById('history-section');
+        const historyTitle = document.getElementById('history-title');
+        const userNameInput = document.getElementById('user-name');
+        const beforeInput = document.getElementById('before-input');
+        const beforePlaceholder = document.getElementById('before-placeholder');
+        const beforePreview = document.getElementById('before-preview');
+        const afterInput = document.getElementById('after-input');
+        const afterPlaceholder = document.getElementById('after-placeholder');
+        const afterPreview = document.getElementById('after-preview');
+        const analyzeBtn = document.getElementById('analyze-btn');
+        const resultContainer = document.getElementById('result-container');
+        const loader = document.getElementById('loader');
+        const resultContent = document.getElementById('result-content');
+        const errorMessage = document.getElementById('error-message');
+        const saveBtnContainer = document.getElementById('save-btn-container');
+        const saveBtn = document.getElementById('save-btn');
+        const historyTableBody = document.getElementById('history-table-body');
+        const noHistoryMessage = document.getElementById('no-history-message');
+        const exportCsvBtn = document.getElementById('export-csv-btn');
+        const detailsModal = document.getElementById('details-modal');
+        const modalTitle = document.getElementById('modal-title');
+        const modalBeforeImg = document.getElementById('modal-before-img');
+        const modalAfterImg = document.getElementById('modal-after-img');
+        const modalResult = document.getElementById('modal-result');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+
+        // --- 初期化処理 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            FACILITIES.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                facilitySelect.appendChild(option);
+            });
+        });
+
+        // --- イベントリスナー ---
+        facilitySelect.addEventListener('change', handleFacilityChange);
+        beforePlaceholder.addEventListener('click', () => beforeInput.click());
+        afterPlaceholder.addEventListener('click', () => afterInput.click());
+        beforePreview.addEventListener('click', () => beforeInput.click());
+        afterPreview.addEventListener('click', () => afterInput.click());
+        [userNameInput, beforeInput, afterInput].forEach(el => {
+            el.addEventListener('change', checkAnalyzeButtonState);
+            el.addEventListener('keyup', checkAnalyzeButtonState);
+        });
+        analyzeBtn.addEventListener('click', analyzeIntake);
+        saveBtn.addEventListener('click', saveRecord);
+        exportCsvBtn.addEventListener('click', exportToCSV);
+        modalCloseBtn.addEventListener('click', () => detailsModal.classList.add('hidden'));
+        detailsModal.addEventListener('click', (e) => {
+            if (e.target === detailsModal) detailsModal.classList.add('hidden');
+        });
+
+        // --- 関数 ---
+        function handleFacilityChange() {
+            const selectedFacility = facilitySelect.value;
+            if (selectedFacility) {
+                mainForm.classList.remove('form-disabled');
+                historySection.classList.remove('hidden');
+                historyTitle.textContent = `${selectedFacility} の食事記録履歴`;
+                renderHistory(selectedFacility);
+            } else {
+                mainForm.classList.add('form-disabled');
+                historySection.classList.add('hidden');
+            }
+        }
+
+        function handleImageUpload(event, previewEl, placeholderEl) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    previewEl.src = e.target.result;
+                    previewEl.classList.remove('hidden');
+                    placeholderEl.classList.add('hidden');
+                    checkAnalyzeButtonState();
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+        beforeInput.addEventListener('change', (e) => handleImageUpload(e, beforePreview, beforePlaceholder));
+        afterInput.addEventListener('change', (e) => handleImageUpload(e, afterPreview, afterPlaceholder));
+
+        function checkAnalyzeButtonState() {
+            if (userNameInput.value.trim() && beforePreview.src && afterPreview.src) {
+                analyzeBtn.disabled = false;
+            } else {
+                analyzeBtn.disabled = true;
+            }
+        }
+
+        function getAllRecords() {
+            return JSON.parse(localStorage.getItem('allMealRecords') || '{}');
+        }
+
+        function saveAllRecords(allRecords) {
+            localStorage.setItem('allMealRecords', JSON.stringify(allRecords));
+        }
+
+        function renderHistory(facility) {
+            const allRecords = getAllRecords();
+            const facilityRecords = allRecords[facility] || [];
+            historyTableBody.innerHTML = '';
+            if (facilityRecords.length === 0) {
+                noHistoryMessage.classList.remove('hidden');
+                exportCsvBtn.disabled = true;
+            } else {
+                noHistoryMessage.classList.add('hidden');
+                exportCsvBtn.disabled = false;
+                facilityRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+                facilityRecords.forEach(record => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'border-b';
+                    tr.innerHTML = `
+                        <td class="p-3">${new Date(record.date).toLocaleString('ja-JP')}</td>
+                        <td class="p-3">${record.userName}</td>
+                        <td class="p-3">
+                            <button class="text-blue-600 hover:underline view-details-btn" data-id="${record.id}">詳細</button>
+                            <button class="text-red-600 hover:underline ml-4 delete-btn" data-id="${record.id}">削除</button>
+                        </td>
+                    `;
+                    historyTableBody.appendChild(tr);
+                });
+            }
+            document.querySelectorAll('.view-details-btn').forEach(btn => btn.addEventListener('click', showDetails));
+            document.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', deleteRecord));
+        }
+
+        function showDetails(event) {
+            const selectedFacility = facilitySelect.value;
+            const id = event.target.dataset.id;
+            const allRecords = getAllRecords();
+            const facilityRecords = allRecords[selectedFacility] || [];
+            const record = facilityRecords.find(r => r.id === id);
+            if (record) {
+                modalTitle.textContent = `${new Date(record.date).toLocaleDateString('ja-JP')} - ${record.userName}様の食事記録`;
+                modalBeforeImg.src = record.beforeImage;
+                modalAfterImg.src = record.afterImage;
+                modalResult.textContent = record.analysisResult;
+                detailsModal.classList.remove('hidden');
+            }
+        }
+
+        function deleteRecord(event) {
+            if (!confirm('この記録を本当に削除しますか？')) return;
+            const selectedFacility = facilitySelect.value;
+            const id = event.target.dataset.id;
+            const allRecords = getAllRecords();
+            allRecords[selectedFacility] = (allRecords[selectedFacility] || []).filter(r => r.id !== id);
+            saveAllRecords(allRecords);
+            renderHistory(selectedFacility);
+        }
+
+        async function analyzeIntake() {
+            resultContainer.classList.remove('hidden');
+            loader.classList.remove('hidden');
+            resultContent.textContent = '';
+            errorMessage.classList.add('hidden');
+            saveBtnContainer.classList.add('hidden');
+            analyzeBtn.disabled = true;
+            try {
+                const beforeBase64 = beforePreview.src.split(',')[1];
+                const afterBase64 = afterPreview.src.split(',')[1];
+                const prompt = `あなたは栄養管理を専門とするAIです。提供された2枚の画像（配膳前と下膳後）を比較し、食事の摂取量を分析してください。分析結果は以下のフォーマットで、品目ごとに摂取した割合をパーセンテージで示してください。\n\n---\n### 分析結果\n\n- **[品目1]**: 約XX%摂取\n- **[品目2]**: 約XX%摂取\n- ...\n\n### 総合的な所見\n[食事全体に関する簡単なコメントや気づいた点を記述してください。]\n---`;
+                const resultText = await callGeminiApi(prompt, beforeBase64, afterBase64);
+                resultContent.textContent = resultText;
+                saveBtnContainer.classList.remove('hidden');
+            } catch (error) {
+                console.error("Analysis Error:", error);
+                errorMessage.textContent = `エラーが発生しました: ${error.message}`;
+                errorMessage.classList.remove('hidden');
+            } finally {
+                loader.classList.add('hidden');
+                analyzeBtn.disabled = false;
+            }
+        }
+        
+        // ★★★ 修正点：画像をリサイズして保存する機能を追加 ★★★
+        /**
+         * 画像をリサイズして圧縮する
+         * @param {string} base64Str - 元の画像のBase64文字列
+         * @param {number} maxWidth - 最大幅
+         * @param {number} maxHeight - 最大高さ
+         * @returns {Promise<string>} - リサイズ後の画像のBase64文字列
+         */
+        function resizeImage(base64Str, maxWidth = 400, maxHeight = 400) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.src = base64Str;
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height *= maxWidth / width;
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width *= maxHeight / height;
+                            height = maxHeight;
+                        }
+                    }
+
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.7)); // JPEG形式で圧縮
+                };
+            });
+        }
+
+        async function saveRecord() {
+            saveBtn.disabled = true;
+            saveBtn.textContent = '保存中...';
+
+            const selectedFacility = facilitySelect.value;
+            const allRecords = getAllRecords();
+            if (!allRecords[selectedFacility]) {
+                allRecords[selectedFacility] = [];
+            }
+
+            try {
+                // 画像をリサイズ
+                const resizedBeforeImage = await resizeImage(beforePreview.src);
+                const resizedAfterImage = await resizeImage(afterPreview.src);
+
+                const newRecord = {
+                    id: Date.now().toString(),
+                    date: new Date().toISOString(),
+                    userName: userNameInput.value.trim(),
+                    beforeImage: resizedBeforeImage,
+                    afterImage: resizedAfterImage,
+                    analysisResult: resultContent.textContent
+                };
+                allRecords[selectedFacility].push(newRecord);
+                
+                saveAllRecords(allRecords);
+                renderHistory(selectedFacility);
+                alert('記録を保存しました。');
+                resetForm();
+
+            } catch (e) {
+                if (e.name === 'QuotaExceededError') {
+                    alert('エラー: 保存容量の上限を超えました。古い記録をいくつか削除してから、もう一度お試しください。');
+                } else {
+                    alert(`保存中にエラーが発生しました: ${e.message}`);
+                }
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'この結果を保存する';
+            }
+        }
+        
+        function resetForm() {
+            userNameInput.value = '';
+            beforeInput.value = '';
+            afterInput.value = '';
+            beforePreview.src = '';
+            afterPreview.src = '';
+            beforePreview.classList.add('hidden');
+            beforePlaceholder.classList.remove('hidden');
+            afterPreview.classList.add('hidden');
+            afterPlaceholder.classList.remove('hidden');
+            resultContainer.classList.add('hidden');
+            saveBtnContainer.classList.add('hidden');
+            checkAnalyzeButtonState();
+        }
+
+        function exportToCSV() {
+            const selectedFacility = facilitySelect.value;
+            const allRecords = getAllRecords();
+            const facilityRecords = allRecords[selectedFacility] || [];
+
+            if (facilityRecords.length === 0) {
+                alert('エクスポートする記録がありません。');
+                return;
+            }
+            let csvContent = "data:text/csv;charset=utf-8,";
+            csvContent += "施設名,日付,利用者名,分析結果\n";
+
+            facilityRecords.forEach(record => {
+                const facility = selectedFacility;
+                const date = new Date(record.date).toLocaleString('ja-JP');
+                const name = record.userName;
+                const result = `"${record.analysisResult.replace(/"/g, '""')}"`;
+                csvContent += `${facility},${date},${name},${result}\n`;
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", `食事記録_${selectedFacility}.csv`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        async function callGeminiApi(prompt, beforeImageBase64, afterImageBase64) {
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            const payload = { contents: [{ role: "user", parts: [{ text: prompt }, { inlineData: { mimeType: "image/jpeg", data: beforeImageBase64 } }, { inlineData: { mimeType: "image/jpeg", data: afterImageBase64 } }] }], generationConfig: { temperature: 0.2, topK: 1, topP: 1, maxOutputTokens: 2048 } };
+            const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            if (!response.ok) {
+                const errorBody = await response.json();
+                throw new Error(`APIリクエストに失敗しました (ステータス: ${response.status})`);
+            }
+            const result = await response.json();
+            if (result.candidates && result.candidates[0]?.content?.parts[0]?.text) {
+                return result.candidates[0].content.parts[0].text;
+            } else {
+                throw new Error(`AIからの有効な回答が得られませんでした。理由: ${result.candidates[0]?.finishReason || '不明'}`);
+            }
+        }
+    </script>
+</body>
+</html>
